@@ -15,8 +15,8 @@ final _logger = DummyLogger('logging_appenders.base_remote_appender');
 ///
 abstract class BaseLogSender extends BaseLogAppender {
   BaseLogSender({
-    LogRecordFormatter formatter,
-    int bufferSize,
+    LogRecordFormatter? formatter,
+    int? bufferSize,
   })  : bufferSize = bufferSize ?? 500,
         super(formatter);
 
@@ -27,7 +27,7 @@ abstract class BaseLogSender extends BaseLogAppender {
   final int bufferSize;
 
   List<LogEntry> _logEvents = <LogEntry>[];
-  Timer _timer;
+  Timer? _timer;
 
   final SimpleJobQueue _sendQueue = SimpleJobQueue();
 
@@ -90,8 +90,8 @@ abstract class BaseLogSender extends BaseLogAppender {
 /// Helper base class to handle Http errors during network requests.
 abstract class BaseHttpLogSender extends BaseLogSender {
   BaseHttpLogSender({
-    LogRecordFormatter formatter,
-    int bufferSize,
+    LogRecordFormatter? formatter,
+    int? bufferSize,
   }) : super(formatter: formatter, bufferSize: bufferSize);
 
   Future<void> sendLogEventsWithHttpClient(
@@ -127,7 +127,7 @@ abstract class BaseHttpLogSender extends BaseLogSender {
 }
 
 class LogEntry {
-  LogEntry({@required this.ts, @required this.line, @required this.lineLabels});
+  LogEntry({required this.ts, required this.line, required this.lineLabels});
 
   final DateTime ts;
   final String line;
@@ -139,7 +139,7 @@ class LogEntry {
 typedef SimpleJobRunner = Stream<void> Function(SimpleJobDef job);
 
 class SimpleJobDef {
-  SimpleJobDef({@required this.runner});
+  SimpleJobDef({required this.runner});
 
   bool completedSuccessfully = false;
 
@@ -153,10 +153,10 @@ class SimpleJobQueue {
 
   final Queue<SimpleJobDef> _queue = Queue<SimpleJobDef>();
 
-  StreamSubscription<void> _currentStream;
+  StreamSubscription<void>? _currentStream;
 
   int _errorCount = 0;
-  DateTime _lastError;
+  DateTime? _lastError;
 
   void add(SimpleJobDef job) {
     _queue.addLast(job);
@@ -195,14 +195,14 @@ class SimpleJobQueue {
       _logger.warning('Error while executing job', error, stackTrace);
       _errorCount++;
       _lastError = DateTime.now();
-      _currentStream.cancel();
+      _currentStream!.cancel();
       _currentStream = null;
       completer.completeError(error, stackTrace);
 
       const errorWait = 10;
       final minWait =
           Duration(seconds: errorWait * (_errorCount * _errorCount + 1));
-      if (_lastError.difference(DateTime.now()).abs().compareTo(minWait) < 0) {
+      if (_lastError!.difference(DateTime.now()).abs().compareTo(minWait) < 0) {
         _logger.finest('There was an error. waiting at least $minWait');
         if (_queue.length > maxQueueSize) {
           _logger.finest('clearing log buffer. ${_queue.length}');

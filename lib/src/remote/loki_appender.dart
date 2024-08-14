@@ -18,10 +18,10 @@ final _logger = DummyLogger('logging_appenders.loki_appender');
 /// Server url must conform for new `api/v1/push` format.
 class LokiApiAppender extends BaseHttpLogSender {
   LokiApiAppender({
-    @required this.server,
-    @required this.username,
-    @required this.password,
-    @required this.labels,
+    required this.server,
+    required this.username,
+    required this.password,
+    required this.labels,
   })  : assert(username.isNotEmpty),
         assert(password.isNotEmpty),
         assert(server.isNotEmpty),
