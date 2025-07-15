@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 
 import 'package:logging_appenders/src/internal/dummy_logger.dart';
 import 'package:logging_appenders/src/remote/base_remote_appender.dart';
-import 'package:meta/meta.dart';
 
 final _logger = DummyLogger('logging_appenders.loki_appender');
 
@@ -107,8 +106,8 @@ class LokiApiAppender extends BaseHttpLogSender {
       return null;
     }).catchError((Object err, StackTrace stackTrace) {
       _logger.warning(
-          'Error while sending logs to loki. ${err?.toString()}, ${stackTrace?.toString()}');
-      return Future<void>.error(err, stackTrace);
+          'Error while sending logs to loki. ${err.toString()}, ${stackTrace.toString()}');
+      Error.throwWithStackTrace(err, stackTrace);
     });
   }
 }

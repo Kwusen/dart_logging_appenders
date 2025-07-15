@@ -3,7 +3,6 @@ import 'dart:collection';
 
 import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
-import 'package:logging_appenders/src/base_appender.dart';
 import 'package:logging_appenders/src/internal/dummy_logger.dart';
 import 'package:meta/meta.dart';
 
@@ -191,7 +190,7 @@ class SimpleJobQueue {
       _queue.removeWhere((job) => job.completedSuccessfully == true);
       _currentStream = null;
       completer.complete(successfulJobs);
-    }, onError: (dynamic error, StackTrace stackTrace) {
+    }, onError: (Object error, StackTrace stackTrace) {
       _logger.warning('Error while executing job', error, stackTrace);
       _errorCount++;
       _lastError = DateTime.now();

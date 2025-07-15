@@ -1,7 +1,8 @@
 {
-  "flutter": "3.7.10",
+  "flutter": "3.7.12",
   "flavors": {
     "prod": "3.7.10",
+    "nullsafety": "3.7.12",
     "devel": "3.22.2"
   }
 }
