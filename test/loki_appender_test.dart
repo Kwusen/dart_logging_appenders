@@ -34,6 +34,14 @@ LokiApiAppender _appender() => LokiApiAppender(
   labels: {'app': 'test'},
 );
 
+LokiApiAppender _labelsAppender() => LokiApiAppender(
+  server: 'logs.example.com',
+  username: 'user',
+  password: 'pass',
+  labels: {'app': 'test'},
+  userPropertiesAs: LokiUserProperties.labels,
+);
+
 void _log(
   LokiApiAppender appender, {
   Map<String, String> lineLabels = const {'lvl': 'INFO', 'logger': 'app'},
@@ -77,6 +85,103 @@ void main() {
           },
         ],
       });
+    });
+
+    final nanoseconds = '${_ts.microsecondsSinceEpoch * 1000}';
+    const line = 'lvl=INFO logger=app - message';
+    final userPropertiesScenarios = [
+      (
+        name: 'structured metadata (default)',
+        create: _appender,
+        props: {'user': 'alice'},
+        stream: {'app': 'test'},
+        value: [
+          nanoseconds,
+          line,
+          {'user': 'alice'},
+        ],
+      ),
+      (
+        name: 'labels',
+        create: _labelsAppender,
+        props: {'user': 'alice'},
+        stream: {'app': 'test', 'user': 'alice'},
+        value: [nanoseconds, line],
+      ),
+      (
+        name: 'labels, key clashing with a fixed label',
+        create: _labelsAppender,
+        props: {'app': 'other', 'user': 'alice'},
+        stream: {'app': 'test', 'user': 'alice'},
+        value: [nanoseconds, line],
+      ),
+      (
+        name: 'structured metadata (default), empty',
+        create: _appender,
+        props: <String, String>{},
+        stream: {'app': 'test'},
+        value: [nanoseconds, line],
+      ),
+      (
+        name: 'labels, empty',
+        create: _labelsAppender,
+        props: <String, String>{},
+        stream: {'app': 'test'},
+        value: [nanoseconds, line],
+      ),
+    ];
+
+    for (final s in userPropertiesScenarios) {
+      test('sends userProperties as ${s.name}', () {
+        var flushed = false;
+        final requests = _withMockClient((async) {
+          final appender = s.create()..userProperties = s.props;
+          _log(appender);
+          appender.flush().then((_) => flushed = true);
+          async.elapse(Duration.zero);
+        });
+        expect(flushed, isTrue);
+        expect(requests, hasLength(1));
+        expect(json.decode(requests.single.body), {
+          'streams': [
+            {
+              'stream': s.stream,
+              'values': [s.value],
+            },
+          ],
+        });
+      });
+    }
+
+    test('copies labels at construction and exposes them read-only', () {
+      final labels = {'app': 'test'};
+      var flushed = false;
+      late LokiApiAppender appender;
+      final requests = _withMockClient((async) {
+        appender = LokiApiAppender(
+          server: 'logs.example.com',
+          username: 'user',
+          password: 'pass',
+          labels: labels,
+        );
+        labels['app'] = 'changed';
+        _log(appender);
+        appender.flush().then((_) => flushed = true);
+        async.elapse(Duration.zero);
+      });
+      expect(flushed, isTrue);
+      expect(requests, hasLength(1));
+      expect(json.decode(requests.single.body), {
+        'streams': [
+          {
+            'stream': {'app': 'test'},
+            'values': [
+              [nanoseconds, line],
+            ],
+          },
+        ],
+      });
+      expect(() => appender.labels['app'] = 'x', throwsUnsupportedError);
     });
 
     test('requires a non-empty server', () {

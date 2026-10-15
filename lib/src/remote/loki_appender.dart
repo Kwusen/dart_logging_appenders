@@ -26,6 +26,8 @@ class LokiApiAppender extends BaseHttpLogSender {
       'Use the default /loki/api/v1/push endpoint.',
     )
     bool useLegacyPromPushApi = false,
+    // TODO(stub): accepted but ignored until implemented.
+    LokiUserProperties userPropertiesAs = LokiUserProperties.structuredMetadata,
   }) : assert(server.isNotEmpty),
        // LEGACY(prom-push): remove together with useLegacyPromPushApi
        _useLegacyPromPushApi = useLegacyPromPushApi,
@@ -109,6 +111,10 @@ class LokiApiAppender extends BaseHttpLogSender {
     return sendRequest(request);
   }
 }
+
+/// Where [LokiApiAppender] puts `userProperties` in a v1 push.
+// TODO(stub): not honoured until implemented.
+enum LokiUserProperties { structuredMetadata, labels }
 
 class LokiPushBody {
   LokiPushBody(this.streams);
