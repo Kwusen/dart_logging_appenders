@@ -177,19 +177,19 @@ abstract class BaseHttpLogSender extends BaseLogSender {
               streamController.close();
             }
           })
-          .catchError((dynamic err, StackTrace stackTrace) {
+          .catchError((Object err, StackTrace stackTrace) {
             var message = err.runtimeType.toString();
             if (err is http.ClientException) {
               message = err.message;
-              _logger.warning(
-                'Error while sending logs. $message',
-                err,
-                stackTrace,
-              );
-              if (!streamController.isClosed) {
-                streamController.addError(err, stackTrace);
-                streamController.close();
-              }
+            }
+            _logger.warning(
+              'Error while sending logs. $message',
+              err,
+              stackTrace,
+            );
+            if (!streamController.isClosed) {
+              streamController.addError(err, stackTrace);
+              streamController.close();
             }
           });
     };
