@@ -61,7 +61,8 @@ void main() {
               .send([])
               .listen(
                 (_) => events.add('data'),
-                onError: (Object e) => events.add('error'),
+                onError: (Object e) =>
+                    events.add(identical(e, error) ? 'error' : 'unexpected $e'),
                 onDone: () => events.add('done'),
               );
           async.flushMicrotasks();
@@ -88,10 +89,13 @@ void main() {
 
     test('sending recovers after a non-ClientException', () {
       fakeAsync((async) {
-        final sender = _TestSender()..failWith = StateError('boom');
+        final error = StateError('boom');
+        final sender = _TestSender()..failWith = error;
         sender.logLine('first');
-        sender.flush().ignore();
+        Object? flushError;
+        sender.flush().catchError((Object e) => flushError = e);
         async.elapse(Duration.zero);
+        expect(flushError, same(error));
         expect(sender.sent, isEmpty);
 
         sender.failWith = null;
