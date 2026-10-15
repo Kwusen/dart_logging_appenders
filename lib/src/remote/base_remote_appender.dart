@@ -24,7 +24,7 @@ abstract class BaseLogSender extends BaseLogAppender {
   }) : bufferSize = bufferSize ?? 500,
        super(formatter);
 
-  Map<String, String> _userProperties = {};
+  Map<String, String> _userProperties = const {};
 
   /// Maximum number of log entries to buffer before triggering sending
   /// of log entries. (default: 500)
@@ -35,8 +35,13 @@ abstract class BaseLogSender extends BaseLogAppender {
 
   final SimpleJobQueue _sendQueue = SimpleJobQueue();
 
+  /// Sets properties sent with every log entry. Lines buffered under the old
+  /// values are sent first, so each set can trigger an extra request.
   set userProperties(Map<String, String> userProperties) {
-    _userProperties = userProperties;
+    if (_logEvents.isNotEmpty) {
+      _triggerSendLogEvents().ignore();
+    }
+    _userProperties = Map.unmodifiable(userProperties);
   }
 
   Future<void> log(
@@ -76,19 +81,20 @@ abstract class BaseLogSender extends BaseLogAppender {
     Map<String, String> userProperties,
   );
 
-  Future<void> _triggerSendLogEvents() => Future(() {
+  Future<void> _triggerSendLogEvents() {
     final entries = _logEvents;
     _logEvents = [];
+    final properties = _userProperties;
     _sendQueue.add(
-      SimpleJobDef(
-        runner: (job) => sendLogEvents(entries, _userProperties),
-      ),
+      SimpleJobDef(runner: (job) => sendLogEvents(entries, properties)),
     );
-    return _sendQueue.triggerJobRuns().then((val) {
-      _logger.finest('Sent log jobs: $val');
-      return null;
-    });
-  });
+    return Future(
+      () => _sendQueue.triggerJobRuns().then((val) {
+        _logger.finest('Sent log jobs: $val');
+        return null;
+      }),
+    );
+  }
 
   @override
   void handle(LogRecord record) {
