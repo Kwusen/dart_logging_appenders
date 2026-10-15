@@ -19,16 +19,18 @@ class LokiApiAppender extends BaseHttpLogSender {
     required this.server,
     required this.username,
     required this.password,
-    required this.labels,
+    required Map<String, String> labels,
     // LEGACY(prom-push): remove together with useLegacyPromPushApi
     @Deprecated(
       'The legacy /api/prom/push endpoint will be removed. '
-      'Use the default /loki/api/v1/push endpoint.',
+      'Use the default /loki/api/v1/push endpoint. '
+      'userProperties are ignored with the legacy endpoint.',
     )
     bool useLegacyPromPushApi = false,
-    // TODO(stub): accepted but ignored until implemented.
     LokiUserProperties userPropertiesAs = LokiUserProperties.structuredMetadata,
   }) : assert(server.isNotEmpty),
+       labels = Map.unmodifiable(labels),
+       _userPropertiesAs = userPropertiesAs,
        // LEGACY(prom-push): remove together with useLegacyPromPushApi
        _useLegacyPromPushApi = useLegacyPromPushApi,
        labelsString =
@@ -41,6 +43,7 @@ class LokiApiAppender extends BaseHttpLogSender {
   final String password;
   final String authHeader;
   final Map<String, String> labels;
+  final LokiUserProperties _userPropertiesAs;
 
   // LEGACY(prom-push): remove together with useLegacyPromPushApi
   @Deprecated(
@@ -73,7 +76,26 @@ class LokiApiAppender extends BaseHttpLogSender {
       jsonBody = encodeLegacyPromPushBody(labelsString, entries);
     } else {
       path = '/loki/api/v1/push';
-      final jsonObject = LokiPushBody([LokiStream(labels, entries)]).toJson();
+      var streamLabels = labels;
+      Map<String, String>? metadata;
+      if (userProperties.isNotEmpty) {
+        switch (_userPropertiesAs) {
+          case LokiUserProperties.structuredMetadata:
+            metadata = userProperties;
+          case LokiUserProperties.labels:
+            final clashing = userProperties.keys.where(labels.containsKey);
+            if (clashing.isNotEmpty) {
+              _logger.finest(
+                'userProperties ${clashing.join(', ')} clash with labels; '
+                'labels win.',
+              );
+            }
+            streamLabels = {...userProperties, ...labels};
+        }
+      }
+      final jsonObject = LokiPushBody([
+        LokiStream(streamLabels, entries),
+      ]).toJson();
       jsonBody = json.encode(
         jsonObject,
         toEncodable: (dynamic obj) {
@@ -92,6 +114,7 @@ class LokiApiAppender extends BaseHttpLogSender {
                     .join(' '),
                 obj.line,
               ].join(' - '),
+              ?metadata,
             ];
           }
           return obj.toJson();
@@ -112,9 +135,17 @@ class LokiApiAppender extends BaseHttpLogSender {
   }
 }
 
-/// Where [LokiApiAppender] puts `userProperties` in a v1 push.
-// TODO(stub): not honoured until implemented.
-enum LokiUserProperties { structuredMetadata, labels }
+/// Where [LokiApiAppender] puts `userProperties` in a v1 push. The legacy
+/// endpoint ignores them.
+enum LokiUserProperties {
+  /// As each entry's structured metadata. Needs Loki 2.9+ with structured
+  /// metadata enabled.
+  structuredMetadata,
+
+  /// Merged into the stream labels; fixed `labels` win on a clash. Keep keys
+  /// stable, use placeholders like `'none'` and keep values low-cardinality.
+  labels,
+}
 
 class LokiPushBody {
   LokiPushBody(this.streams);
