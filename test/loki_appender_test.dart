@@ -112,7 +112,7 @@ void main() {
         name: 'labels, key clashing with a fixed label',
         create: _labelsAppender,
         props: {'app': 'other', 'user': 'alice'},
-        stream: {'app': 'test', 'user': 'alice'},
+        stream: {'app': 'other', 'user': 'alice'},
         value: [nanoseconds, line],
       ),
       (

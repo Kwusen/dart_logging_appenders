@@ -83,14 +83,7 @@ class LokiApiAppender extends BaseHttpLogSender {
           case LokiUserProperties.structuredMetadata:
             metadata = userProperties;
           case LokiUserProperties.labels:
-            final clashing = userProperties.keys.where(labels.containsKey);
-            if (clashing.isNotEmpty) {
-              _logger.finest(
-                'userProperties ${clashing.join(', ')} clash with labels; '
-                'labels win.',
-              );
-            }
-            streamLabels = {...userProperties, ...labels};
+            streamLabels = {...labels, ...userProperties};
         }
       }
       final jsonObject = LokiPushBody([
@@ -142,7 +135,7 @@ enum LokiUserProperties {
   /// metadata enabled.
   structuredMetadata,
 
-  /// Merged into the stream labels; fixed `labels` win on a clash. Keep keys
+  /// Merged into the stream labels; `userProperties` win on a clash. Keep keys
   /// stable, use placeholders like `'none'` and keep values low-cardinality.
   labels,
 }
