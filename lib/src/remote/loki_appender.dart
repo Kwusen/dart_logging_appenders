@@ -24,12 +24,12 @@ class LokiApiAppender extends BaseHttpLogSender {
     @Deprecated(
       'The legacy /api/prom/push endpoint will be removed. '
       'Use the default /loki/api/v1/push endpoint. '
-      'userProperties are ignored with the legacy endpoint.',
+      'userProperties and sendLevelMetadata are ignored with the legacy '
+      'endpoint.',
     )
     bool useLegacyPromPushApi = false,
     this.userPropertiesAs = LokiUserProperties.structuredMetadata,
-    // Placeholder so the tests compile: accepted but not implemented yet.
-    bool sendLevelMetadata = false,
+    this.sendLevelMetadata = false,
   }) : assert(server.isNotEmpty),
        labels = Map.unmodifiable(labels),
        // LEGACY(prom-push): remove together with useLegacyPromPushApi
@@ -47,6 +47,12 @@ class LokiApiAppender extends BaseHttpLogSender {
 
   /// Where `userProperties` go in a v1 push.
   final LokiUserProperties userPropertiesAs;
+
+  /// Adds the record's log level to each entry's structured metadata as `level`
+  /// (trace, debug, info, warn, error or critical) for Loki and Grafana level
+  /// detection. Needs Loki 3, or 2.9 with structured metadata enabled. A `level`
+  /// in userProperties wins when keys conflict.
+  final bool sendLevelMetadata;
 
   // LEGACY(prom-push): remove together with useLegacyPromPushApi
   @Deprecated(
@@ -110,7 +116,20 @@ class LokiApiAppender extends BaseHttpLogSender {
                     .join(' '),
                 obj.line,
               ].join(' - '),
-              ?metadata,
+              if (sendLevelMetadata)
+                {
+                  'level': switch (obj.logLevel.value) {
+                    < 500 => 'trace',
+                    < 800 => 'debug',
+                    < 900 => 'info',
+                    < 1000 => 'warn',
+                    < 1200 => 'error',
+                    _ => 'critical',
+                  },
+                  ...?metadata,
+                }
+              else
+                ?metadata,
             ];
           }
           return obj.toJson();
@@ -138,8 +157,9 @@ enum LokiUserProperties {
   /// metadata enabled.
   structuredMetadata,
 
-  /// Merged into the stream labels; `userProperties` win on a clash. Keep keys
-  /// stable, use placeholders like `'none'` and keep values low-cardinality.
+  /// Merged into the stream labels; `userProperties` win when keys conflict.
+  /// Keep keys stable, use placeholders like `'none'` and keep values
+  /// low-cardinality.
   labels,
 }
 
@@ -160,10 +180,19 @@ class LokiPushBody {
 /// For the v1 push API it serializes to:
 /// ```json
 /// {
-///   "stream": {"label": "value"},
-///   "values": [["<unix epoch in nanoseconds>", "<log line>"], ...]
+///   "stream": {"label name": "label value"},
+///   "values": [
+///     [
+///       "<unix epoch in nanoseconds>",
+///       "<log line>",
+///       {"metadata key": "metadata value"}
+///     ],
+///     ...
+///   ]
 /// }
 /// ```
+///
+/// The third element of each value, structured metadata, is optional.
 class LokiStream {
   LokiStream(this.labels, this.entries);
 
