@@ -52,7 +52,8 @@ void main() {
   });
 
   test(
-    'LokiApiAppender pushes the legacy request, ignoring userProperties',
+    'LokiApiAppender pushes the legacy request, ignoring userProperties and '
+    'level metadata',
     () {
       var flushed = false;
       final requests = <http.Request>[];
@@ -65,6 +66,7 @@ void main() {
             labels: {'app': 'test'},
             useLegacyPromPushApi: true,
             userPropertiesAs: LokiUserProperties.labels,
+            sendLevelMetadata: true,
           )..userProperties = {'user': 'alice'};
           appender.log(Level.INFO, _ts, 'message', {
             'lvl': 'INFO',
