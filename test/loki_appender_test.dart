@@ -42,10 +42,28 @@ LokiApiAppender _labelsAppender() => LokiApiAppender(
   userPropertiesAs: LokiUserProperties.labels,
 );
 
+LokiApiAppender _levelAppender() => LokiApiAppender(
+  server: 'logs.example.com',
+  username: 'user',
+  password: 'pass',
+  labels: {'app': 'test'},
+  sendLevelMetadata: true,
+);
+
+LokiApiAppender _labelsLevelAppender() => LokiApiAppender(
+  server: 'logs.example.com',
+  username: 'user',
+  password: 'pass',
+  labels: {'app': 'test'},
+  userPropertiesAs: LokiUserProperties.labels,
+  sendLevelMetadata: true,
+);
+
 void _log(
   LokiApiAppender appender, {
+  Level level = Level.INFO,
   Map<String, String> lineLabels = const {'lvl': 'INFO', 'logger': 'app'},
-}) => appender.log(Level.INFO, _ts, 'message', lineLabels);
+}) => appender.log(level, _ts, 'message', lineLabels);
 
 void main() {
   group('LokiApiAppender', () {
@@ -129,6 +147,51 @@ void main() {
         stream: {'app': 'test'},
         value: [nanoseconds, line],
       ),
+      (
+        name: 'structured metadata with level metadata',
+        create: _levelAppender,
+        props: {'user': 'alice'},
+        stream: {'app': 'test'},
+        value: [
+          nanoseconds,
+          line,
+          {'user': 'alice', 'level': 'info'},
+        ],
+      ),
+      (
+        name:
+            'structured metadata with level metadata, key clashing with level',
+        create: _levelAppender,
+        props: {'level': 'other', 'user': 'alice'},
+        stream: {'app': 'test'},
+        value: [
+          nanoseconds,
+          line,
+          {'user': 'alice', 'level': 'other'},
+        ],
+      ),
+      (
+        name: 'structured metadata with level metadata, empty',
+        create: _levelAppender,
+        props: <String, String>{},
+        stream: {'app': 'test'},
+        value: [
+          nanoseconds,
+          line,
+          {'level': 'info'},
+        ],
+      ),
+      (
+        name: 'labels with level metadata',
+        create: _labelsLevelAppender,
+        props: {'user': 'alice'},
+        stream: {'app': 'test', 'user': 'alice'},
+        value: [
+          nanoseconds,
+          line,
+          {'level': 'info'},
+        ],
+      ),
     ];
 
     for (final s in userPropertiesScenarios) {
@@ -151,6 +214,63 @@ void main() {
           ],
         });
       });
+    }
+
+    // Custom levels sit on each side of every boundary.
+    final levelScenarios = [
+      (level: const Level('BELOW_ALL', -1), expected: 'trace'),
+      (level: Level.ALL, expected: 'trace'),
+      (level: Level.FINEST, expected: 'trace'),
+      (level: Level.FINER, expected: 'trace'),
+      (level: const Level('CUSTOM_499', 499), expected: 'trace'),
+      (level: Level.FINE, expected: 'debug'),
+      (level: Level.CONFIG, expected: 'debug'),
+      (level: const Level('CUSTOM_799', 799), expected: 'debug'),
+      (level: Level.INFO, expected: 'info'),
+      (level: const Level('CUSTOM_899', 899), expected: 'info'),
+      (level: Level.WARNING, expected: 'warn'),
+      (level: const Level('CUSTOM_999', 999), expected: 'warn'),
+      (level: Level.SEVERE, expected: 'error'),
+      (level: const Level('CUSTOM_1199', 1199), expected: 'error'),
+      (level: Level.SHOUT, expected: 'critical'),
+      (level: Level.OFF, expected: 'critical'),
+    ];
+
+    for (final s in levelScenarios) {
+      test(
+        'sends level metadata ${s.expected} for ${s.level.name} '
+        '(${s.level.value})',
+        () {
+          var flushed = false;
+          final requests = _withMockClient((async) {
+            final appender = _levelAppender();
+            _log(
+              appender,
+              level: s.level,
+              lineLabels: {'lvl': s.level.name, 'logger': 'app'},
+            );
+            appender.flush().then((_) => flushed = true);
+            async.elapse(Duration.zero);
+          });
+          expect(flushed, isTrue);
+          expect(requests, hasLength(1));
+          // The line keeps the Dart level name.
+          expect(json.decode(requests.single.body), {
+            'streams': [
+              {
+                'stream': {'app': 'test'},
+                'values': [
+                  [
+                    nanoseconds,
+                    'lvl=${s.level.name} logger=app - message',
+                    {'level': s.expected},
+                  ],
+                ],
+              },
+            ],
+          });
+        },
+      );
     }
 
     test('copies labels at construction and exposes them read-only', () {

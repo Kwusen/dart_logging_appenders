@@ -28,6 +28,8 @@ class LokiApiAppender extends BaseHttpLogSender {
     )
     bool useLegacyPromPushApi = false,
     this.userPropertiesAs = LokiUserProperties.structuredMetadata,
+    // Placeholder so the tests compile: accepted but not implemented yet.
+    bool sendLevelMetadata = false,
   }) : assert(server.isNotEmpty),
        labels = Map.unmodifiable(labels),
        // LEGACY(prom-push): remove together with useLegacyPromPushApi
