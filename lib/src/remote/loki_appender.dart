@@ -27,10 +27,9 @@ class LokiApiAppender extends BaseHttpLogSender {
       'userProperties are ignored with the legacy endpoint.',
     )
     bool useLegacyPromPushApi = false,
-    LokiUserProperties userPropertiesAs = LokiUserProperties.structuredMetadata,
+    this.userPropertiesAs = LokiUserProperties.structuredMetadata,
   }) : assert(server.isNotEmpty),
        labels = Map.unmodifiable(labels),
-       _userPropertiesAs = userPropertiesAs,
        // LEGACY(prom-push): remove together with useLegacyPromPushApi
        _useLegacyPromPushApi = useLegacyPromPushApi,
        labelsString =
@@ -43,7 +42,9 @@ class LokiApiAppender extends BaseHttpLogSender {
   final String password;
   final String authHeader;
   final Map<String, String> labels;
-  final LokiUserProperties _userPropertiesAs;
+
+  /// Where `userProperties` go in a v1 push.
+  final LokiUserProperties userPropertiesAs;
 
   // LEGACY(prom-push): remove together with useLegacyPromPushApi
   @Deprecated(
@@ -79,7 +80,7 @@ class LokiApiAppender extends BaseHttpLogSender {
       var streamLabels = labels;
       Map<String, String>? metadata;
       if (userProperties.isNotEmpty) {
-        switch (_userPropertiesAs) {
+        switch (userPropertiesAs) {
           case LokiUserProperties.structuredMetadata:
             metadata = userProperties;
           case LokiUserProperties.labels:
